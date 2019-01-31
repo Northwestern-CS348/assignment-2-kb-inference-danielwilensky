@@ -64,7 +64,7 @@ class KnowledgeBase(object):
                 if fact_rule.supported_by:
                     ind = self.facts.index(fact_rule)
                     for f in fact_rule.supported_by:
-                        self.facts[ind].supported_by.append(f)
+                        self.facts[ind].supported_by.append(f) #why can't just use fact_rule here, i.e. don't need ind?
                 else:
                     ind = self.facts.index(fact_rule)
                     self.facts[ind].asserted = True
@@ -128,7 +128,63 @@ class KnowledgeBase(object):
         printv("Retracting {!r}", 0, verbose, [fact_or_rule])
         ####################################################
         # Student code goes here
-        
+        deleted = False
+        if isinstance(fact_or_rule,Fact):
+            if fact_or_rule in self.facts:
+                ind = self.facts.index(fact_or_rule)
+                fact = self.facts[ind]
+                if fact.asserted == True:
+                    fact.asserted=False
+                    if len(fact.supported_by) == 0:
+                        del self.facts[ind]
+                        deleted=True
+                else:
+                    if len(fact.supported_by) == 0: #if not asserted should I still check if supported?
+                        del self.facts[ind]
+                        deleted=True
+                if deleted:
+                    for i in fact.supports_facts:
+                        for j in i.supported_by:
+                            if j[0] == fact:
+                                ind2 = self.facts.index(i)
+                                fact2 = self.facts[ind2]
+                                fact2.supported_by.remove(j) #need to remove a tuple of [fact,rule]!!!!!!!!!
+                                if len(fact2.supported_by)==0:
+                                    self.kb_retract(fact2)
+                    for i in fact.supports_rules:
+                        for j in i.supported_by:
+                            if j[0] == fact:
+                                ind2 = self.rules.index(i)
+                                rule2 = self.rules[ind2]
+                                rule2.supported_by.remove(j)
+                                if len(rule2.supported_by)==0:
+                                    self.kb_retract(rule2)
+        elif isinstance(fact_or_rule,Rule): #says rules can be retracted in Readme, but in piazza no???
+            if fact_or_rule in self.rules:
+                ind = self.rules.index(fact_or_rule)
+                rule = self.rules[ind]
+                if rule.asserted == False:
+                    if len(rule.supported_by) == 0:
+                        del self.rules[ind]
+                        deleted=True
+                if deleted:
+                    for i in rule.supports_facts:
+                        for j in i.supported_by:
+                            if j[1] == rule:
+                                ind2 = self.facts.index(i)
+                                fact2 = self.facts[ind2]
+                                fact2.supported_by.remove(j)
+                                if len(fact2.supported_by)==0:
+                                    self.kb_retract(fact2)
+                    for i in rule.supports_rules:
+                        for j in i.supported_by:
+                            if j[1] == rule:
+                                ind2 = self.facts.index(i)
+                                rule2 = self.facts[ind2]
+                                rule2.supported_by.remove(j)
+                                if len(rule2.supported_by)==0:
+                                    self.kb_retract(rule2)
+
 
 class InferenceEngine(object):
     def fc_infer(self, fact, rule, kb):
@@ -146,3 +202,29 @@ class InferenceEngine(object):
             [fact.statement, rule.lhs, rule.rhs])
         ####################################################
         # Student code goes here
+        # if fact.statement.predicate == 'motherof':
+        #     if rule.rhs.predicate == 'grandmotherof':
+        #         print('h')
+        binding = match(fact.statement,rule.lhs[0])
+        if binding != False:
+            if len(rule.lhs)>1:
+                terms = []
+                for i in range(len(rule.lhs)-1):
+                    terms.append(instantiate(rule.lhs[i+1],binding)) #probs need to macth again, actually no
+                terms = [terms,instantiate(rule.rhs,binding)]
+                new_rule=Rule(terms) #create new rule with lhs w/o elt 0
+                new_rule.supported_by.append([fact,rule])
+                #new_rule.supported_by.append(fact)
+                rule.supports_rules.append(new_rule)
+                fact.supports_rules.append(new_rule)
+                new_rule.asserted=False
+                kb.kb_assert(new_rule)
+            else: #lhs has 1 elt
+                #probs need to match again, think not actually
+                new_fact=Fact(instantiate(rule.rhs,binding)) #assuming rhs is only 1 thing always? yes
+                new_fact.supported_by.append([fact,rule])
+                #new_fact.supported_by.append(fact)
+                rule.supports_facts.append(new_fact)
+                fact.supports_facts.append(new_fact)
+                new_fact.asserted=False
+                kb.kb_assert(new_fact)
